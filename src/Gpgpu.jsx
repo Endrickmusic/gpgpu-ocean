@@ -189,14 +189,14 @@ export default function GPGPUHeightmap({ options }) {
   return (
     <>
       {/* Simulation mesh */}
-      <mesh>
-        <planeGeometry args={[2, 2]} />
+      <mesh position={[0.5, 1.2, 0]}>
+        <planeGeometry args={[0.5, 0.5]} />
         <primitive object={materials.sim} />
       </mesh>
 
       {/* Debug visualization */}
-      <mesh position={[2.5, 0, 0]}>
-        <planeGeometry args={[2, 2]} />
+      <mesh position={[1.5, 1.2, 0]}>
+        <planeGeometry args={[0.5, 0.5]} />
         <primitive object={materials.debug} />
       </mesh>
     </>
