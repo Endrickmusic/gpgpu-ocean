@@ -1,5 +1,5 @@
 import { OrbitControls, useEnvironment, useTexture } from "@react-three/drei"
-import { useRef, useEffect } from "react"
+import { useRef, useEffect, useMemo, useCallback } from "react"
 import { DoubleSide } from "three"
 import { useControls } from "leva"
 
@@ -13,46 +13,51 @@ export default function Shader() {
 
   debugObject.Color = "#4242c1"
 
-  const options = useControls("Controls", {
-    BigElevation: { value: 0.35, min: -5, max: 5, step: 0.001 },
-    BigFrequency: { value: 3.4, min: 0, max: 30, step: 0.001 },
-    BigSpeed: { value: 0.4, min: -5, max: 5, step: 0.001 },
-    NoiseRangeDown: { value: -1.3, min: -1.3, max: 0, step: 0.001 },
-    NoiseRangeUp: { value: 1.3, min: 0, max: 1.3, step: 0.001 },
-    Wireframe: false,
-  })
-
-  useEffect(
-    (state, delta) => {
-      if (meshRef.current.material.userData.shader) {
-        meshRef.current.material.userData.shader.uniforms.uBigWaveElevation.value =
-          options.BigElevation
-        meshRef.current.material.userData.shader.uniforms.uBigWaveFrequency.value =
-          options.BigFrequency
-        meshRef.current.material.userData.shader.uniforms.uBigWaveSpeed.value =
-          options.BigSpeed
-        meshRef.current.material.userData.shader.uniforms.uNoiseRangeDown.value =
-          options.NoiseRangeDown
-        meshRef.current.material.userData.shader.uniforms.uNoiseRangeUp.value =
-          options.NoiseRangeUp
-
-        materialRef.current.wireframe = options.Wireframe
-      }
-    },
-    [options]
+  const options = useMemo(
+    () =>
+      useControls("Controls", {
+        BigElevation: { value: 0.35, min: -5, max: 5, step: 0.001 },
+        BigFrequency: { value: 3.4, min: 0, max: 30, step: 0.001 },
+        BigSpeed: { value: 0.4, min: -5, max: 5, step: 0.001 },
+        NoiseRangeDown: { value: -1.3, min: -1.3, max: 0, step: 0.001 },
+        NoiseRangeUp: { value: 1.3, min: 0, max: 1.3, step: 0.001 },
+        Wireframe: false,
+      }),
+    []
   )
+
+  const updateShaderUniforms = useCallback(() => {
+    if (!meshRef.current?.material?.userData?.shader) return
+
+    const shader = meshRef.current.material.userData.shader
+    shader.uniforms.uBigWaveElevation.value = options.BigElevation
+    shader.uniforms.uBigWaveFrequency.value = options.BigFrequency
+    shader.uniforms.uBigWaveSpeed.value = options.BigSpeed
+    shader.uniforms.uNoiseRangeDown.value = options.NoiseRangeDown
+    shader.uniforms.uNoiseRangeUp.value = options.NoiseRangeUp
+
+    materialRef.current.wireframe = options.Wireframe
+  }, [options])
+
+  useEffect(() => {
+    updateShaderUniforms()
+  }, [updateShaderUniforms])
 
   const envMap = useEnvironment({
     files: "./environments/aerodynamics_workshop_2k.hdr",
   })
-  const [normalMap, roughnessMap] = useTexture([
-    "./textures/waternormals.jpeg",
-    "./textures/SurfaceImperfections003_1K_var1.jpg",
-  ])
+  const [normalMap, roughnessMap] = useMemo(
+    () =>
+      useTexture([
+        "./textures/waternormals.jpeg",
+        "./textures/SurfaceImperfections003_1K_var1.jpg",
+      ]),
+    []
+  )
 
   return (
     <>
-      <OrbitControls />
+      <OrbitControls makeDefault />
 
       <directionalLight position={[0, 2, 0]} intensity={3} />
       <group>
