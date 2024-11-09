@@ -59,8 +59,8 @@ export default function Shader() {
         <mesh
           ref={meshRef}
           scale={1}
-          rotation={[Math.PI, 0, 0.2 * Math.PI]}
-          position={[-0.2, -0.15, 0]}
+          rotation={[Math.PI, 0, 0]}
+          position={[0, 0, 0]}
         >
           <planeGeometry args={[2, 2, 256, 256]} />
           <meshStandardMaterial

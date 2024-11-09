@@ -307,7 +307,7 @@ export default function GPGPUHeightmap({ options }) {
         <planeGeometry args={[2, 2]} />
         <primitive object={debugMaterial} />
       </mesh>
-      <mesh position={[-2.5, 0, 0]} rotation={[-Math.PI * 0.1, 0, 0]}>
+      <mesh position={[-2.5, 0, 0]} rotation={[0, 0, 0]}>
         <planeGeometry args={[2, 2, 256, 256]} />{" "}
         {/* More segments for better displacement */}
         <primitive object={displacementMaterial} />
