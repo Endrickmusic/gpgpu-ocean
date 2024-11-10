@@ -217,11 +217,53 @@ const displacementShaders = {
     `,
 }
 
+// Add this new shader configuration
+const normalVisualizationShaders = {
+  vertexShader: `
+    uniform sampler2D heightmap;
+    uniform float uDisplacementStrength;
+    
+    varying vec2 vUv;
+    varying vec3 vNormal;
+    
+    void main() {
+      vUv = uv;
+      
+      // Calculate normal based on heightmap gradient
+      vec2 texelSize = vec2(1.0 / 256.0);
+      float left = texture2D(heightmap, uv - vec2(texelSize.x, 0.0)).r;
+      float right = texture2D(heightmap, uv + vec2(texelSize.x, 0.0)).r;
+      float top = texture2D(heightmap, uv + vec2(0.0, texelSize.y)).r;
+      float bottom = texture2D(heightmap, uv - vec2(0.0, texelSize.y)).r;
+      
+      // Calculate the derivatives
+      float dX = (right - left) * uDisplacementStrength;
+      float dY = (top - bottom) * uDisplacementStrength;
+      
+      // Create the normal vector
+      vec3 normal = normalize(vec3(-dX, -dY, 1.0));
+      vNormal = normal; // No need for normalMatrix since we're just visualizing
+      
+      // Just use the original position without displacement
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    varying vec3 vNormal;
+    
+    void main() {
+      vec3 normal = normalize(vNormal);
+      vec3 normalColor = normal * 0.5 + 0.5;
+      gl_FragColor = vec4(normalColor, 1.0);
+    }
+  `,
+}
+
 export default function GPGPUHeightmap({ options }) {
   const size = 256
   const { gl } = useThree()
 
-  // Scene setup
+  // Scene setup - keep these separate
   const simScene = useMemo(() => new Scene(), [])
   const simCamera = useMemo(
     () => new OrthographicCamera(-1, 1, 1, -1, -1, 1),
@@ -237,35 +279,39 @@ export default function GPGPUHeightmap({ options }) {
     stencilBuffer: false,
   })
 
-  // Create materials and geometries
-  const [simMaterial, debugMaterial, simMesh, displacementMaterial] =
-    useMemo(() => {
-      const sim = new ShaderMaterial({
+  // Create materials as individual refs
+  const simMaterial = useMemo(
+    () =>
+      new ShaderMaterial({
         uniforms: {
           uTime: { value: 0 },
-          uBigWaveElevation: { value: options.BigElevation },
-          uBigWaveFrequency: { value: options.BigFrequency },
-          uBigWaveSpeed: { value: options.BigSpeed },
-          uNoiseRangeDown: { value: options.NoiseRangeDown },
-          uNoiseRangeUp: { value: options.NoiseRangeUp },
+          uBigWaveElevation: { value: 0 },
+          uBigWaveFrequency: { value: 0 },
+          uBigWaveSpeed: { value: 0 },
+          uNoiseRangeDown: { value: 0 },
+          uNoiseRangeUp: { value: 0 },
         },
         vertexShader: simulationMaterial.vertexShader,
         fragmentShader: simulationMaterial.fragmentShader,
-      })
+      }),
+    []
+  )
 
-      const debug = new ShaderMaterial({
+  const debugMaterial = useMemo(
+    () =>
+      new ShaderMaterial({
         uniforms: {
           heightmap: { value: null },
         },
         vertexShader: debugMaterialConfig.vertexShader,
         fragmentShader: debugMaterialConfig.fragmentShader,
-      })
+      }),
+    []
+  )
 
-      // Create simulation mesh
-      const mesh = new Mesh(new PlaneGeometry(2, 2), sim)
-      simScene.add(mesh)
-
-      const displaced = new ShaderMaterial({
+  const displacementMaterial = useMemo(
+    () =>
+      new ShaderMaterial({
         uniforms: {
           heightmap: { value: null },
           uDisplacementStrength: { value: 1.0 },
@@ -273,10 +319,29 @@ export default function GPGPUHeightmap({ options }) {
         },
         vertexShader: displacementShaders.vertexShader,
         fragmentShader: displacementShaders.fragmentShader,
-      })
+      }),
+    []
+  )
 
-      return [sim, debug, mesh, displaced]
-    }, [options, simScene])
+  const normalMaterial = useMemo(
+    () =>
+      new ShaderMaterial({
+        uniforms: {
+          heightmap: { value: null },
+          uDisplacementStrength: { value: 20.0 },
+        },
+        vertexShader: normalVisualizationShaders.vertexShader,
+        fragmentShader: normalVisualizationShaders.fragmentShader,
+      }),
+    []
+  )
+
+  // Create and add simulation mesh
+  const simMesh = useMemo(() => {
+    const mesh = new Mesh(new PlaneGeometry(2, 2), simMaterial)
+    simScene.add(mesh)
+    return mesh
+  }, [simScene, simMaterial])
 
   // Update and render simulation
   useFrame((state) => {
@@ -298,6 +363,8 @@ export default function GPGPUHeightmap({ options }) {
     debugMaterial.uniforms.heightmap.value = target.texture
     // Update displacement material with new texture
     displacementMaterial.uniforms.heightmap.value = target.texture
+    // Update normal visualization material with new texture
+    normalMaterial.uniforms.heightmap.value = target.texture
   })
 
   return (
@@ -311,6 +378,10 @@ export default function GPGPUHeightmap({ options }) {
         <planeGeometry args={[2, 2, 256, 256]} />{" "}
         {/* More segments for better displacement */}
         <primitive object={displacementMaterial} />
+      </mesh>
+      <mesh position={[0, 1.1, 0]} rotation={[0, 0, 0]}>
+        <planeGeometry args={[2, 2, 256, 256]} />
+        <primitive object={normalMaterial} />
       </mesh>
     </>
   )
