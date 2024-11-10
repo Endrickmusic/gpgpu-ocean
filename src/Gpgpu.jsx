@@ -10,7 +10,6 @@ import {
   OrthographicCamera,
   Mesh,
   PlaneGeometry,
-  Vector3,
 } from "three"
 import { useFrame, createPortal, useThree } from "@react-three/fiber"
 import { useFBO } from "@react-three/drei"
@@ -118,103 +117,37 @@ const simulationMaterial = {
   `,
 }
 
-// Rename this to debugMaterialConfig
-const debugMaterialConfig = {
-  vertexShader: `
-    varying vec2 vUv;
-    void main() {
-      vUv = uv;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }
-  `,
-  fragmentShader: `
-    uniform sampler2D heightmap;
-    varying vec2 vUv;
-    
-    void main() {
-      vec4 height = texture2D(heightmap, vUv);
-      // Remap the height value from [-1, 1] to [0, 1] for visualization
-      float remappedHeight = height.r * 0.5 + 0.5;
-      
-      // Create a more visible color gradient
-      vec3 color = vec3(remappedHeight);
-      
-      // Add some color bands for better visualization
-      if (remappedHeight < 0.33) {
-        color.b = remappedHeight * 3.0;
-      } else if (remappedHeight < 0.66) {
-        color.g = (remappedHeight - 0.33) * 3.0;
-      } else {
-        color.r = (remappedHeight - 0.66) * 3.0;
-      }
-      
-      gl_FragColor = vec4(color, 1.0);
-    }
-  `,
-}
-
-const displacementShaders = {
-  vertexShader: `
-      uniform sampler2D heightmap;
-      uniform float uDisplacementStrength;
-      
+// Change this from const to function to avoid hoisting issues
+function createDebugMaterial() {
+  return {
+    vertexShader: `
       varying vec2 vUv;
-      varying vec3 vNormal;
-      varying vec3 vViewPosition;
-  
       void main() {
         vUv = uv;
-        
-        // Sample heightmap
-        vec4 heightData = texture2D(heightmap, uv);
-        
-        // Apply displacement in model space
-        vec3 transformed = position;
-        transformed.z += heightData.r * uDisplacementStrength;
-        
-        // Calculate view position and normal
-        vec4 mvPosition = modelViewMatrix * vec4(transformed, 1.0);
-        vViewPosition = -mvPosition.xyz;
-        
-        // Calculate normal based on heightmap gradient
-        vec2 texelSize = vec2(1.0 / 256.0);
-        float left = texture2D(heightmap, uv - vec2(texelSize.x, 0.0)).r;
-        float right = texture2D(heightmap, uv + vec2(texelSize.x, 0.0)).r;
-        float top = texture2D(heightmap, uv + vec2(0.0, texelSize.y)).r;
-        float bottom = texture2D(heightmap, uv - vec2(0.0, texelSize.y)).r;
-        
-        vec3 normal = normalize(vec3(
-          (left - right) * uDisplacementStrength,
-          2.0,
-          (bottom - top) * uDisplacementStrength
-        ));
-        
-        vNormal = normalMatrix * normal;
-        
-        gl_Position = projectionMatrix * mvPosition;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }
     `,
-  fragmentShader: `
-      uniform vec3 uColor;
-      
+    fragmentShader: `
+      uniform sampler2D heightmap;
       varying vec2 vUv;
-      varying vec3 vNormal;
-      varying vec3 vViewPosition;
-  
+      
       void main() {
-        // Simple lighting calculation
-        vec3 normal = normalize(vNormal);
-        vec3 lightPos = vec3(5.0, 5.0, 5.0);
-        vec3 lightDir = normalize(lightPos - vViewPosition);
+        vec4 height = texture2D(heightmap, vUv);
+        float remappedHeight = height.r * 0.5 + 0.5;
+        vec3 color = vec3(remappedHeight);
         
-        float diffuse = max(dot(normal, lightDir), 0.0);
-        float ambient = 0.3;
-        
-        vec3 color = uColor * (diffuse + ambient);
+        if (remappedHeight < 0.33) {
+          color.b = remappedHeight * 3.0;
+        } else if (remappedHeight < 0.66) {
+          color.g = (remappedHeight - 0.33) * 3.0;
+        } else {
+          color.r = (remappedHeight - 0.66) * 3.0;
+        }
         
         gl_FragColor = vec4(color, 1.0);
       }
     `,
+  }
 }
 
 export default function GPGPUHeightmap({ options }) {
@@ -238,45 +171,34 @@ export default function GPGPUHeightmap({ options }) {
   })
 
   // Create materials and geometries
-  const [simMaterial, debugMaterial, simMesh, displacementMaterial] =
-    useMemo(() => {
-      const sim = new ShaderMaterial({
-        uniforms: {
-          uTime: { value: 0 },
-          uBigWaveElevation: { value: options.BigElevation },
-          uBigWaveFrequency: { value: options.BigFrequency },
-          uBigWaveSpeed: { value: options.BigSpeed },
-          uNoiseRangeDown: { value: options.NoiseRangeDown },
-          uNoiseRangeUp: { value: options.NoiseRangeUp },
-        },
-        vertexShader: simulationMaterial.vertexShader,
-        fragmentShader: simulationMaterial.fragmentShader,
-      })
+  const [simMaterial, debugMaterial, simMesh] = useMemo(() => {
+    const sim = new ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uBigWaveElevation: { value: options.BigElevation },
+        uBigWaveFrequency: { value: options.BigFrequency },
+        uBigWaveSpeed: { value: options.BigSpeed },
+        uNoiseRangeDown: { value: options.NoiseRangeDown },
+        uNoiseRangeUp: { value: options.NoiseRangeUp },
+      },
+      vertexShader: simulationMaterial.vertexShader,
+      fragmentShader: simulationMaterial.fragmentShader,
+    })
 
-      const debug = new ShaderMaterial({
-        uniforms: {
-          heightmap: { value: null },
-        },
-        vertexShader: debugMaterialConfig.vertexShader,
-        fragmentShader: debugMaterialConfig.fragmentShader,
-      })
+    const debug = new ShaderMaterial({
+      uniforms: {
+        heightmap: { value: null },
+      },
+      vertexShader: createDebugMaterial().vertexShader,
+      fragmentShader: createDebugMaterial().fragmentShader,
+    })
 
-      // Create simulation mesh
-      const mesh = new Mesh(new PlaneGeometry(2, 2), sim)
-      simScene.add(mesh)
+    // Create simulation mesh
+    const mesh = new Mesh(new PlaneGeometry(2, 2), sim)
+    simScene.add(mesh)
 
-      const displaced = new ShaderMaterial({
-        uniforms: {
-          heightmap: { value: null },
-          uDisplacementStrength: { value: 1.0 },
-          uColor: { value: new Vector3(0.4, 0.6, 0.8) },
-        },
-        vertexShader: displacementShaders.vertexShader,
-        fragmentShader: displacementShaders.fragmentShader,
-      })
-
-      return [sim, debug, mesh, displaced]
-    }, [options, simScene])
+    return [sim, debug, mesh]
+  }, [options, simScene])
 
   // Update and render simulation
   useFrame((state) => {
@@ -296,8 +218,6 @@ export default function GPGPUHeightmap({ options }) {
 
     // Update debug material with new texture
     debugMaterial.uniforms.heightmap.value = target.texture
-    // Update displacement material with new texture
-    displacementMaterial.uniforms.heightmap.value = target.texture
   })
 
   return (
@@ -306,11 +226,6 @@ export default function GPGPUHeightmap({ options }) {
       <mesh position={[2.5, 0, 0]}>
         <planeGeometry args={[2, 2]} />
         <primitive object={debugMaterial} />
-      </mesh>
-      <mesh position={[-2.5, 0, 0]} rotation={[0, 0, 0]}>
-        <planeGeometry args={[2, 2, 256, 256]} />{" "}
-        {/* More segments for better displacement */}
-        <primitive object={displacementMaterial} />
       </mesh>
     </>
   )
