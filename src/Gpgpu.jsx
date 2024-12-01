@@ -25,11 +25,10 @@ const simulationMaterial = {
   `,
   fragmentShader: `
     uniform float uTime;
-    uniform float uBigWaveElevation;
-    uniform float uBigWaveFrequency;
-    uniform float uBigWaveSpeed;
-    uniform float uNoiseRangeDown;
-    uniform float uNoiseRangeUp;
+    uniform float uScale;
+    uniform float uAmplitude;
+    uniform float uSpeed;
+
     varying vec2 vUv;
 
     //	Classic Perlin 3D Noise 
@@ -107,9 +106,8 @@ const simulationMaterial = {
 
     void main() {
       vec3 pos = vec3(vUv.x, 0.0, vUv.y);
-      float n = cnoise(pos * uBigWaveFrequency + vec3(uTime * uBigWaveSpeed)) * uBigWaveElevation;
-      float noiseArea = sin(smoothstep(uNoiseRangeDown, uNoiseRangeUp, pos.y) * 3.14159);
-      float height = n * noiseArea;
+      float n = cnoise(pos * uScale + vec3(uTime * uSpeed)) * uAmplitude;
+      float height = n;
       
       // Store height in red channel
       gl_FragColor = vec4(height, 0.0, 0.0, 1.0);
@@ -135,14 +133,6 @@ function createDebugMaterial() {
         vec4 height = texture2D(heightmap, vUv);
         float remappedHeight = height.r * 0.5 + 0.5;
         vec3 color = vec3(remappedHeight);
-        
-        if (remappedHeight < 0.33) {
-          color.b = remappedHeight * 3.0;
-        } else if (remappedHeight < 0.66) {
-          color.g = (remappedHeight - 0.33) * 3.0;
-        } else {
-          color.r = (remappedHeight - 0.66) * 3.0;
-        }
         
         gl_FragColor = vec4(color, 1.0);
       }
@@ -175,6 +165,9 @@ export default function GPGPUHeightmap({ options }) {
     const sim = new ShaderMaterial({
       uniforms: {
         uTime: { value: 0 },
+        uScale: { value: 5.0 },
+        uAmplitude: { value: 1.0 },
+        uSpeed: { value: 0.5 },
       },
       vertexShader: simulationMaterial.vertexShader,
       fragmentShader: simulationMaterial.fragmentShader,
