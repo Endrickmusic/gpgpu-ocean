@@ -175,11 +175,6 @@ export default function GPGPUHeightmap({ options }) {
     const sim = new ShaderMaterial({
       uniforms: {
         uTime: { value: 0 },
-        uBigWaveElevation: { value: options.BigElevation },
-        uBigWaveFrequency: { value: options.BigFrequency },
-        uBigWaveSpeed: { value: options.BigSpeed },
-        uNoiseRangeDown: { value: options.NoiseRangeDown },
-        uNoiseRangeUp: { value: options.NoiseRangeUp },
       },
       vertexShader: simulationMaterial.vertexShader,
       fragmentShader: simulationMaterial.fragmentShader,
@@ -198,17 +193,12 @@ export default function GPGPUHeightmap({ options }) {
     simScene.add(mesh)
 
     return [sim, debug, mesh]
-  }, [options, simScene])
+  }, [simScene])
 
   // Update and render simulation
   useFrame((state) => {
     // Update simulation uniforms
     simMaterial.uniforms.uTime.value = state.clock.elapsedTime
-    simMaterial.uniforms.uBigWaveElevation.value = options.BigElevation
-    simMaterial.uniforms.uBigWaveFrequency.value = options.BigFrequency
-    simMaterial.uniforms.uBigWaveSpeed.value = options.BigSpeed
-    simMaterial.uniforms.uNoiseRangeDown.value = options.NoiseRangeDown
-    simMaterial.uniforms.uNoiseRangeUp.value = options.NoiseRangeUp
 
     // Render simulation to FBO
     const currentRenderTarget = gl.getRenderTarget()
@@ -223,7 +213,7 @@ export default function GPGPUHeightmap({ options }) {
   return (
     <>
       {/* Debug visualization */}
-      <mesh position={[2.5, 0, 0]}>
+      <mesh position={[0, 0, 0]}>
         <planeGeometry args={[2, 2]} />
         <primitive object={debugMaterial} />
       </mesh>
