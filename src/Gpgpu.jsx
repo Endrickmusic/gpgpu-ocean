@@ -13,6 +13,7 @@ import {
 } from "three"
 import { useFrame, createPortal, useThree } from "@react-three/fiber"
 import { useFBO } from "@react-three/drei"
+import { useControls } from "leva"
 
 // Simulation material remains the same as before
 const simulationMaterial = {
@@ -140,7 +141,7 @@ function createDebugMaterial() {
   }
 }
 
-export default function GPGPUHeightmap({ options }) {
+export default function GPGPUHeightmap() {
   const size = 256
   const { gl } = useThree()
 
@@ -159,6 +160,18 @@ export default function GPGPUHeightmap({ options }) {
     type: FloatType,
     stencilBuffer: false,
   })
+
+  const controls = useControls({
+    scale: { value: 5.0, min: 0.0, max: 10.0 },
+    amplitude: { value: 1.0, min: 0.0, max: 10.0 },
+    speed: { value: 0.5, min: 0.0, max: 1.0 },
+  })
+
+  const options = {
+    uScale: controls.scale,
+    uAmplitude: controls.amplitude,
+    uSpeed: controls.speed,
+  }
 
   // Create materials and geometries
   const [simMaterial, debugMaterial, simMesh] = useMemo(() => {
@@ -188,10 +201,16 @@ export default function GPGPUHeightmap({ options }) {
     return [sim, debug, mesh]
   }, [simScene])
 
+  // Update uniforms when options change
+  useEffect(() => {}, [])
+
   // Update and render simulation
   useFrame((state) => {
     // Update simulation uniforms
     simMaterial.uniforms.uTime.value = state.clock.elapsedTime
+    simMaterial.uniforms.uScale.value = options.uScale
+    simMaterial.uniforms.uAmplitude.value = options.uAmplitude
+    simMaterial.uniforms.uSpeed.value = options.uSpeed
 
     // Render simulation to FBO
     const currentRenderTarget = gl.getRenderTarget()

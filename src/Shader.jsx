@@ -10,8 +10,6 @@ export default function Shader() {
   const materialRef = useRef()
   const debugObject = {}
 
-  debugObject.Color = "#4242c1"
-
   const envMap = useEnvironment({
     files: "./environments/aerodynamics_workshop_2k.hdr",
   })
@@ -26,9 +24,9 @@ export default function Shader() {
 
   return (
     <>
-      <OrbitControls makeDefault />
+      {/* <OrbitControls makeDefault /> */}
 
-      <directionalLight position={[0, 2, 0]} intensity={3} />
+      {/* <directionalLight position={[0, 2, 0]} intensity={3} /> */}
 
       <GPGPUHeightmap />
     </>
