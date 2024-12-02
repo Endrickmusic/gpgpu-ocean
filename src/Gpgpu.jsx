@@ -29,60 +29,51 @@ uniform float uTime;
 uniform float uScale;
 uniform float uAmplitude;
 uniform float uSpeed;
+uniform int uOctaves;
 
-// Hash function by Dave Hoskins
-vec2 hash22(vec2 p) {
-    vec3 p3 = fract(vec3(p.xyx) * vec3(.1031, .1030, .0973));
-    p3 += dot(p3, p3.yzx + 33.33);
-    return fract((p3.xx + p3.yz) * p3.zy);
+float hash(vec2 p) { return fract(1e4 * sin(17.0 * p.x + p.y * 0.1) * (0.1 + abs(sin(p.y * 13.0 + p.x)))); }
+
+float noise(vec2 x) {
+	vec2 i = floor(x);
+	vec2 f = fract(x);
+
+	// Four corners in 2D of a tile
+	float a = hash(i);
+	float b = hash(i + vec2(1.0, 0.0));
+	float c = hash(i + vec2(0.0, 1.0));
+	float d = hash(i + vec2(1.0, 1.0));
+
+	// Simple 2D lerp using smoothstep envelope between the values.
+	// return vec3(mix(mix(a, b, smoothstep(0.0, 1.0, f.x)),
+	//			mix(c, d, smoothstep(0.0, 1.0, f.x)),
+	//			smoothstep(0.0, 1.0, f.y)));
+
+	// Same code, with the clamps in smoothstep and common subexpressions
+	// optimized away.
+	vec2 u = f * f * (3.0 - 2.0 * f);
+	return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
 }
 
-float noise2D(vec2 p) {
-    vec2 i = floor(p);
-    vec2 f = fract(p);
-    
-    vec2 u = f * f * (3.0 - 2.0 * f);
-    
-    float a = dot(hash22(i), f);
-    float b = dot(hash22(i + vec2(1.0, 0.0)), f - vec2(1.0, 0.0));
-    float c = dot(hash22(i + vec2(0.0, 1.0)), f - vec2(0.0, 1.0));
-    float d = dot(hash22(i + vec2(1.0, 1.0)), f - vec2(1.0, 1.0));
-    
-    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+float fbm(vec2 x) {
+	float v = 0.0;
+	float a = 0.5;
+	vec2 shift = vec2(100);
+	// Rotate to reduce axial bias
+    mat2 rot = mat2(cos(0.5), sin(0.5), -sin(0.5), cos(0.50));
+	for (int i = 0; i < uOctaves; ++i) {
+		v += a * noise(x);
+		x = rot * x * 2.0 + shift;
+		a *= 0.5;
+	}
+	return v;
 }
 
-float fbm(vec2 p) {
-    float value = 0.0;
-    float amplitude = uAmplitude;
-    float frequency = uScale;
-    
-    for(int i = 0; i < 6; i++) {
-        value += amplitude * noise2D(p * frequency);
-        frequency *= 2.0;
-        amplitude *= 0.5;
-    }
-    
-    return value;
-}
 
 void main() {
 
     vec2 uv = gl_FragCoord.xy;
-    
-    // Debug output - comment/uncomment these to test different stages
-    
-    // Test 1: UV coordinates as colors
-    // fragColor = vec4(uv.x, uv.y, 0.0, 1.0);
-    
-    // Test 2: Animated color
-    // fragColor = vec4(sin(time) * 0.5 + 0.5, 0.0, 0.0, 1.0);
-    
-    // Test 3: Simple checkerboard
-    // float checker = mod(floor(uv.x * 10.0) + floor(uv.y * 10.0), 2.0);
-    // fragColor = vec4(vec3(checker), 1.0);
-    
-    // Original code
-
+    uv *= uScale;
+    uv += uTime * uSpeed;
     float noise = fbm(uv);
     gl_FragColor = vec4(vec3(noise), 1.0);
 }
@@ -135,15 +126,17 @@ export default function GPGPUHeightmap() {
   })
 
   const controls = useControls({
-    scale: { value: 5.0, min: 0.0, max: 10.0 },
+    scale: { value: 0.005, min: 0.0, max: 0.15 },
     amplitude: { value: 1.0, min: 0.0, max: 10.0 },
-    speed: { value: 0.5, min: 0.0, max: 1.0 },
+    speed: { value: 0.5, min: 0.0, max: 10.0 },
+    octaves: { value: 6, min: 1, max: 10, step: 1 },
   })
 
   const options = {
     uScale: controls.scale,
     uAmplitude: controls.amplitude,
     uSpeed: controls.speed,
+    uOctaves: controls.octaves,
   }
 
   // Create materials and geometries
@@ -151,9 +144,10 @@ export default function GPGPUHeightmap() {
     const sim = new ShaderMaterial({
       uniforms: {
         uTime: { value: 0 },
-        uScale: { value: 5.0 },
+        uScale: { value: 0.01 },
         uAmplitude: { value: 1.0 },
         uSpeed: { value: 0.5 },
+        uOctaves: { value: 6 },
       },
       vertexShader: simulationMaterial.vertexShader,
       fragmentShader: simulationMaterial.fragmentShader,
@@ -184,6 +178,7 @@ export default function GPGPUHeightmap() {
     simMaterial.uniforms.uScale.value = options.uScale
     simMaterial.uniforms.uAmplitude.value = options.uAmplitude
     simMaterial.uniforms.uSpeed.value = options.uSpeed
+    simMaterial.uniforms.uOctaves.value = options.uOctaves
 
     // Render simulation to FBO
     const currentRenderTarget = gl.getRenderTarget()
